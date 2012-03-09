@@ -70,6 +70,7 @@ def query_a(qtype, remote, base):
     return results
 
 def query(qname, qclass, qtype, id_, remote):
+    qname = qname.lower()
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
     for zone in config.zones:
