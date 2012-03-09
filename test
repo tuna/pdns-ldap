@@ -2,7 +2,11 @@
 { sed 's/#.*//' | sed '/^$/d' | ./pdns-ldap.py; } <<EOF
 HELO	1
 Q	tuna.tsinghua.edu.cn	IN	NS	-1	0.0.0.0
+Q	alef.tuna.tsinghua.edu.cn	IN	A	-1	0.0.0.0
 Q	alef.tuna.tsinghua.edu.cn	IN	A	-1	59.66.133.1
+Q	issues.tuna.tsinghua.edu.cn	IN	A	-1	0.0.0.0
+Q	dns.tuna.tsinghua.edu.cn	IN	A	-1	0.0.0.0
+Q	tuna.tsinghua.edu.cn	IN	NS	-1	0.0.0.0
 Q	tuna.tsinghua.edu.cn	IN	SOA	-1	0.0.0.0
 EOF
 # vi: noet:

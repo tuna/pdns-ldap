@@ -51,14 +51,21 @@ def query_a(qtype, remote, base):
 
     # re looks like [ (dn, attr_dict), ... ]
     ips = re[0][1][ipattr]
-    if qtype == 'AAAA':
-        ips = [ x for x in ips if IPAddress(x).version == 6 ]
-    else:
-        ips = [ x for x in ips if IPAddress(x).version == 4 ]
+
+    def is_v4(x):
+        return IPAddress(x).version == 4
+    def is_v6(x):
+        return IPAddress(x).version == 6
+    def geo_filter(ips, remote):
         filtered = [ x for x in ips if in_campus(x) == in_campus(remote) ]
-        if filtered:
-            ips = filtered
-    return ips
+        return filtered or ips
+
+    results = []
+    if qtype in ('AAAA', 'ANY'):
+        results.extend(filter(is_v6, ips))
+    if qtype in ('A', 'ANY'):
+        results.extend(geo_filter(filter(is_v4, ips), remote))
+    return results
 
 def query(qname, qclass, qtype, id_, remote):
     if qclass != 'IN':
@@ -75,20 +82,22 @@ def query(qname, qclass, qtype, id_, remote):
 
     answers = []
 
-    if qtype in ('A', 'AAAA'):
+    if qtype in ('A', 'AAAA', 'ANY'):
         for fmt in config.searches:
             ips = query_a(qtype, remote, fmt % (escape_dn_chars(rqname)))
             if ips:
-                answers = [ make_answer(qname, qtype, ip) for ip in ips ]
+                more = [ make_answer(qname, qtype, ip) for ip in ips ]
+                answers.extend(more)
                 break
-    elif qtype == 'NS':
+    if qtype in ('NS', 'ANY'):
         if rqname == '@':
-            answers = [ make_answer(qname, qtype, '%s.%s'%(dc, zone))
-                        for dc in config.ns_dcs ]
-    # In case of empty response, return SOA record of current zone.
-    # Note how normal SOA queries fall into this category.
-    if len(answers) == 0:
-        answers = [ make_answer(zone, 'SOA', compose_soa(zone)) ]
+            more = [ make_answer(qname, qtype, '%s.%s'%(dc, zone))
+                     for dc in config.ns_dcs ]
+            answers.extend(more)
+    # Also return SOA record of current zone in case of empty response.
+    if qtype in ('SOA', 'ANY') or len(answers) == 0:
+        extra = make_answer(zone, 'SOA', compose_soa(zone))
+        answers.append(extra)
 
     return answers
 
