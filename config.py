@@ -1,5 +1,15 @@
-uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
-start_tls = True
+import platform
+# XXX Quick-and-dirty way of adapting configuration
+hostname = platform.node()
+if hostname == 'blackie':
+    uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
+    start_tls = True
+elif hostname.startswith('alef'):
+    uri = 'ldap://192.168.100.2'
+    start_tls = False
+else:
+    raise Exception('Unknown host: %s. Cannot determine profile' % hostname)
+
 ca_cert = '/etc/ssl/tuna/ca.crt'
 cert = '/etc/ssl/tuna/server.crt'
 
