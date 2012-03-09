@@ -96,10 +96,10 @@ def query(qname, qclass, qtype, id_, remote):
             more = [ make_answer(qname, 'NS', '%s.%s'%(dc, zone))
                      for dc in config.ns_dcs ]
             answers.extend(more)
-    # Also return SOA record of current zone in case of empty response.
-    if qtype in ('SOA', 'ANY') or len(answers) == 0:
-        extra = make_answer(zone, 'SOA', compose_soa(zone))
-        answers.append(extra)
+    if qtype in ('SOA', 'ANY'):
+        if rqname == '@':
+            extra = make_answer(zone, 'SOA', compose_soa(zone))
+            answers.append(extra)
 
     return answers
 
