@@ -62,9 +62,11 @@ def query_a(qtype, remote, base):
 
     results = []
     if qtype in ('AAAA', 'ANY'):
-        results.extend(filter(is_v6, ips))
+        li = filter(is_v6, ips)
+        results.extend(zip(li, [ 'AAAA' ] * len(li)))
     if qtype in ('A', 'ANY'):
-        results.extend(geo_filter(filter(is_v4, ips), remote))
+        li = geo_filter(filter(is_v4, ips), remote)
+        results.extend(zip(li, [ 'A' ] * len(li)))
     return results
 
 def query(qname, qclass, qtype, id_, remote):
@@ -86,12 +88,12 @@ def query(qname, qclass, qtype, id_, remote):
         for fmt in config.searches:
             ips = query_a(qtype, remote, fmt % (escape_dn_chars(rqname)))
             if ips:
-                more = [ make_answer(qname, qtype, ip) for ip in ips ]
+                more = [ make_answer(qname, qtype_, ip) for ip, qtype_ in ips ]
                 answers.extend(more)
                 break
     if qtype in ('NS', 'ANY'):
         if rqname == '@':
-            more = [ make_answer(qname, qtype, '%s.%s'%(dc, zone))
+            more = [ make_answer(qname, 'NS', '%s.%s'%(dc, zone))
                      for dc in config.ns_dcs ]
             answers.extend(more)
     # Also return SOA record of current zone in case of empty response.
