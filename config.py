@@ -1,6 +1,6 @@
-import platform
+from socket import gethostname
 # XXX Quick-and-dirty way of adapting configuration
-hostname = platform.node()
+hostname = gethostname()
 if hostname == 'blackie':
     uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
     start_tls = True
