@@ -40,7 +40,7 @@ def compose_soa(zone):
     fmt = "dns.%(zone)s dns@%(zone)s %(serial)s 1200 600 28800 %(ttl)s";
     return fmt % locals()
 
-def query_a(qtype, remote, base):
+def query_a(qtype, remote, tag, base):
     scope = ldap.SCOPE_BASE
     ipattr = 'ipHostNumber'
 
@@ -61,10 +61,10 @@ def query_a(qtype, remote, base):
         return filtered or ips
 
     results = []
-    if qtype in ('AAAA', 'ANY'):
+    if qtype in ('AAAA', 'ANY') and tag != '4':
         li = filter(is_v6, ips)
         results.extend(zip(li, [ 'AAAA' ] * len(li)))
-    if qtype in ('A', 'ANY'):
+    if qtype in ('A', 'ANY') and tag != '6':
         li = geo_filter(filter(is_v4, ips), remote)
         results.extend(zip(li, [ 'A' ] * len(li)))
     return results
@@ -73,12 +73,19 @@ def query(qname, qclass, qtype, id_, remote):
     qname = qname.lower()
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
+    tag = ''
     for zone in config.zones:
         if qname == zone:
             rqname = '@'
             break
         elif qname.endswith('.' + zone):
-            rqname = qname[:len(qname) - len('.' + zone)]
+            rqname = qname[:-len('.' + zone)]
+            if rqname in '46':
+                tag = rqname
+                rqname = '@'
+            elif rqname[-2:] in ('.4', '.6'):
+                tag = rqname[-1]
+                rqname = rqname[:-2]
             break
     else:
         raise DNSError('Not in my zones: %s' % qname)
@@ -87,9 +94,10 @@ def query(qname, qclass, qtype, id_, remote):
 
     if qtype in ('A', 'AAAA', 'ANY'):
         for fmt in config.searches:
-            ips = query_a(qtype, remote, fmt % (escape_dn_chars(rqname)))
+            ips = query_a(qtype, remote, tag, fmt % (escape_dn_chars(rqname)))
             if ips:
-                more = [ make_answer(qname, qtype_, ip) for ip, qtype_ in ips ]
+                more = [ make_answer(qname, qtype_, ip)
+                         for ip, qtype_ in ips ]
                 answers.extend(more)
                 break
     if qtype in ('NS', 'ANY'):
