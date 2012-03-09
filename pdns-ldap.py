@@ -159,5 +159,8 @@ def main():
             output('FAIL')
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        output('LOG', 'Interrupted by user when in non-daemon mode')
 
