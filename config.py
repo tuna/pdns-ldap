@@ -7,6 +7,9 @@ if hostname == 'blackie':
 elif hostname.startswith('alef'):
     uri = 'ldap://192.168.100.2'
     start_tls = False
+elif hostname.startswith('major'):
+    uri = 'ldap://127.0.0.1'
+    start_tls = False
 else:
     raise Exception('Unknown host: %s. Cannot determine profile' % hostname)
 
