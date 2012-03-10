@@ -24,5 +24,5 @@ zones = ( 'tuna.tsinghua.edu.cn', 'tuna' )
 ns_dcs = ( 'dns', 'dns2' )
 campus = ( '59.66.0.0/16', '166.111.0.0/16' )
 
-searches = ( 'cn=%s,ou=services,o=tuna', 'cn=%s,ou=hosts,o=tuna' )
+searches = ( 'cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna' )
 
