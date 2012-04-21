@@ -4,7 +4,7 @@
     while read line; do
         printf "%s\n" "$line"
         printf '\033[1m%s\033[m\n' "$line" >&2
-	done | ./pdns-ldap.py | sed -r '/^(END|FAIL)$/a\
+    done | ./pdns-ldap.py | sed -r '/^(END|FAIL)$/a\
 '
 } <<EOF
 HELO	1
