@@ -1,5 +1,3 @@
-#!/usr/bin/python2 -u
-
 # NOTE: This is a toy, actually.
 # External dependencies: ipaddr, python-ldap
 

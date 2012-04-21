@@ -1,0 +1,13 @@
+#!/bin/sh
+# Work around different names for Python 2 executable.
+# On Arch `python` is Python 3; on most other distros `python` is Python 2
+cd "$(dirname "$0")"
+for python in python2 python; do
+    if type $python >/dev/null 2>&1; then
+        exec $python -u pdns-ldap.py "$@"
+    fi
+done
+
+echo 'No python2 executable found.'
+exit 1
+
