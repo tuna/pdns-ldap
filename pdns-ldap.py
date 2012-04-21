@@ -1,6 +1,6 @@
 #!/usr/bin/python2 -u
 
-# XXX: This is a toy, actually.
+# NOTE: This is a toy, actually.
 # External dependencies: ipaddr, python-ldap
 
 from sys import stdin, stdout, exit
@@ -11,6 +11,7 @@ from ldap.dn import escape_dn_chars
 from ipaddr import IPv4Address, IPv4Network, IPAddress
 
 import ldap
+import re
 import config
 
 class DNSError(Exception):
@@ -40,7 +41,7 @@ def compose_soa(zone):
     fmt = "dns.%(zone)s dns@%(zone)s %(serial)s 1200 600 28800 %(ttl)s";
     return fmt % locals()
 
-def query_a(qtype, remote, tag, base):
+def query_a(qtype, remote, tags, base):
     scope = ldap.SCOPE_BASE
     ipattr = 'ipHostNumber'
 
@@ -56,57 +57,66 @@ def query_a(qtype, remote, tag, base):
         return IPAddress(x).version == 4
     def is_v6(x):
         return IPAddress(x).version == 6
-    def geo_filter(ips, remote):
-        filtered = [ x for x in ips if in_campus(x) == in_campus(remote) ]
+    def geo_filter(ips, in_):
+        filtered = [ x for x in ips if in_campus(x) == in_ ]
         return filtered or ips
 
     results = []
-    if qtype in ('AAAA', 'ANY') and tag != '4':
+    if qtype in ('AAAA', 'ANY') and '4' not in tags:
         li = filter(is_v6, ips)
         results.extend(zip(li, [ 'AAAA' ] * len(li)))
-    if qtype in ('A', 'ANY') and tag != '6':
-        li = geo_filter(filter(is_v4, ips), remote)
+    if qtype in ('A', 'ANY') and '6' not in tags:
+        if 'i' in tags:
+            in_ = True
+        elif 'o' in tags:
+            in_ = False
+        else:
+            in_ = in_campus(remote)
+        li = geo_filter(filter(is_v4, ips), in_)
         results.extend(zip(li, [ 'A' ] * len(li)))
     return results
 
 def query(qname, qclass, qtype, id_, remote):
-    qname = qname.lower()
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
-    tag = ''
-    for zone in config.zones:
-        if qname == zone:
-            rqname = '@'
-            break
-        elif qname.endswith('.' + zone):
-            rqname = qname[:-len('.' + zone)]
-            if rqname in '46':
-                tag = rqname
-                rqname = '@'
-            elif rqname[-2:] in ('.4', '.6'):
-                tag = rqname[-1]
+    qname = qname.lower()
+
+    # Strip zone and tags from qname to form rqname {
+    dotqname = '.' + qname
+    tags = set()
+    if not hasattr(config, '_dotzones'):
+        config._dotzones = [ '.' + z for z in config.zones ]
+    for dotzone in config._dotzones:
+        if dotqname.endswith(dotzone):
+            rqname = dotqname[:-len(dotzone)]
+            while re.search(r'\.[46io]$', rqname):
+                tags.add(rqname[-1])
                 rqname = rqname[:-2]
             break
     else:
         raise DNSError('Not in my zones: %s' % qname)
+    zone = dotzone[1:]
+    rqname = rqname[1:]
+    # }
 
     answers = []
 
     if qtype in ('A', 'AAAA', 'ANY'):
         for fmt in config.searches:
-            ips = query_a(qtype, remote, tag, fmt % (escape_dn_chars(rqname)))
+            ips = query_a(qtype, remote, tags, fmt % (
+                          escape_dn_chars(rqname or '@')))
             if ips:
                 more = [ make_answer(qname, qtype_, ip)
                          for ip, qtype_ in ips ]
                 answers.extend(more)
                 break
     if qtype in ('NS', 'ANY'):
-        if rqname == '@':
+        if rqname == '':
             more = [ make_answer(qname, 'NS', '%s.%s'%(dc, zone))
                      for dc in config.ns_dcs ]
             answers.extend(more)
     if qtype in ('SOA', 'ANY'):
-        if rqname == '@':
+        if rqname == '':
             extra = make_answer(zone, 'SOA', compose_soa(zone))
             answers.append(extra)
 
