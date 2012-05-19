@@ -5,7 +5,7 @@ if hostname == 'blackie':
     uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
     start_tls = True
 elif hostname.startswith('alef'):
-    uri = 'ldap://192.168.100.2'
+    uri = 'ldap://192.168.100.89'
     start_tls = False
 elif hostname.startswith('major'):
     uri = 'ldap://127.0.0.1'
@@ -20,9 +20,10 @@ binddn = 'cn=pdns,ou=robots,o=tuna'
 bindpw = "NOT STORED IN GIT REPO"
 
 ttl = '60'
-zones = ( 'tuna.tsinghua.edu.cn', 'tuna' )
-ns_dcs = ( 'dns', 'dns2' )
-campus = ( '59.66.0.0/16', '166.111.0.0/16' )
+zones = ['tuna.tsinghua.edu.cn', 'tuna', 'mirrors.tsinghua.edu.cn']
 
-searches = ( 'cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna' )
+ns_dcs = ['dns', 'dns2']
+campus = ['59.66.0.0/16', '166.111.0.0/16']
+
+searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
 
