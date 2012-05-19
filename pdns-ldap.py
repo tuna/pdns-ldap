@@ -15,7 +15,7 @@ import config
 class DNSError(Exception):
     pass
 
-def in_campus_factory():
+def _in_campus_factory():
     predicates = map(lambda x: IPv4Network(x).Contains, config.campus)
     def in_campus(ip):
         ip = IPv4Address(ip)
@@ -25,7 +25,7 @@ def in_campus_factory():
         return False
     return in_campus
 
-in_campus = in_campus_factory()
+in_campus = _in_campus_factory()
 
 def make_answer(qname, qtype, content, qclass='IN', ttl=config.ttl, id_='-1'):
     return (qname, qclass, qtype, ttl, id_, content)
