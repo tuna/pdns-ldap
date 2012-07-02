@@ -15,6 +15,9 @@ import config
 class DNSError(Exception):
     pass
 
+def issuffix(whole, part):
+    return whole[-len(part):] == part
+
 def _in_campus_factory():
     predicates = map(lambda x: IPv4Network(x).Contains, config.campus)
     def in_campus(ip):
@@ -79,22 +82,25 @@ def query(qname, qclass, qtype, id_, remote):
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
     qname = qname.lower()
 
+    # TODO instead of doing some nasty string fiddling we might want to keep
+    # the result of qname.split('.')
+    qname_parts = qname.split('.')
+
     # Strip zone and tags from qname to form rqname {
     dotqname = '.' + qname
     tags = set()
-    if not hasattr(config, '_dotzones'):
-        config._dotzones = [ '.' + z for z in config.zones ]
-    for dotzone in config._dotzones:
-        if dotqname.endswith(dotzone):
-            rqname = dotqname[:-len(dotzone)]
-            while re.search(r'\.[46io]$', rqname):
-                tags.add(rqname[-1])
-                rqname = rqname[:-2]
+    if not hasattr(config, '_zones_parts'):
+        config._zones_parts = [z.split('.') for z in config.zones]
+    for zone_parts in config._zones_parts:
+        if issuffix(qname_parts, zone_parts):
+            rqname_parts = qname_parts[:-len(zone_parts)]
+            while rqname_parts[-1] in '46io':
+                tags.add(rqname_parts.pop())
             break
     else:
         raise DNSError('Not in my zones: %s' % qname)
-    zone = dotzone[1:]
-    rqname = rqname[1:]
+    zone = '.'.join(zone_parts)
+    rqname = '.'.join(rqname_parts)
     # }
 
     answers = []
@@ -103,6 +109,12 @@ def query(qname, qclass, qtype, id_, remote):
         for fmt in config.searches:
             ips = query_a(qtype, remote, tags, fmt % (
                           escape_dn_chars(rqname or '@')))
+            if not ips and len(rqname_parts) > 0:
+                wild_rqname_parts = rqname_parts[:]
+                wild_rqname_parts[0] = '*'
+                wild_rqname = '.'.join(wild_rqname_parts)
+                ips = query_a(qtype, remote, tags, fmt % (
+                          escape_dn_chars(wild_rqname)))
             if ips:
                 more = [ make_answer(qname, qtype_, ip)
                          for ip, qtype_ in ips ]
