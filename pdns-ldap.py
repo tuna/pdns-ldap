@@ -94,7 +94,7 @@ def query(qname, qclass, qtype, id_, remote):
     for zone_parts in config._zones_parts:
         if issuffix(qname_parts, zone_parts):
             rqname_parts = qname_parts[:-len(zone_parts)]
-            while rqname_parts[-1] in '46io':
+            while rqname_parts and rqname_parts[-1] in '46io':
                 tags.add(rqname_parts.pop())
             break
     else:
@@ -109,7 +109,7 @@ def query(qname, qclass, qtype, id_, remote):
         for fmt in config.searches:
             ips = query_a(qtype, remote, tags, fmt % (
                           escape_dn_chars(rqname or '@')))
-            if not ips and len(rqname_parts) > 0:
+            if not ips and rqname_parts:
                 wild_rqname_parts = rqname_parts[:]
                 wild_rqname_parts[0] = '*'
                 wild_rqname = '.'.join(wild_rqname_parts)
