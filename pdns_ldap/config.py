@@ -27,3 +27,8 @@ campus = ['59.66.0.0/16', '166.111.0.0/16']
 
 searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
 
+try:
+    from config_local import *
+except ImportError:
+    pass
+

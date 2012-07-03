@@ -1,2 +1,3 @@
 .*.swp
 *.pyc
+/pdns_ldap/config_local.py
