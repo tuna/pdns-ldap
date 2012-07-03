@@ -3,6 +3,7 @@
 
 from sys import stdin, stdout, exit
 from time import strftime
+from collections import Iterable
 
 from ldap.ldapobject import ReconnectLDAPObject
 from ldap.dn import escape_dn_chars
@@ -11,12 +12,53 @@ from ipaddr import IPv4Address, IPv4Network, IPAddress
 import ldap
 import config
 
+
+class Domain(object):
+    def __init__(self, value):
+        if isinstance(value, basestring):
+            self._parts = value.split('.') if value else []
+        elif isinstance(value, Iterable):
+            self._parts = value
+        else:
+            raise TypeError('value must be basestring or other iterable type')
+
+    def __getitem__(self, k):
+        return self._parts[k]
+
+    def __setitem__(self, k, v):
+        self._parts[k] = v
+
+    def __len__(self):
+        return len(self._parts)
+
+    def __getslice__(self, i, j):
+        return Domain(self._parts[i:j])
+
+    def __eq__(self, rhs):
+        return type(self) == type(rhs) and self._parts == rhs._parts
+
+    def __str__(self):
+        return '.'.join(self._parts)
+
+    def __repr__(self):
+        return 'Domain(%r)' % str(self)
+
+    def __le__(self, rhs):
+        '''Returns true if lhs is a subdomain of rhs.'''
+        if not isinstance(rhs, Domain):
+            raise TypeError('Both operands should be of Domain type')
+        return len(rhs) == 0 or self[-len(rhs):] == rhs
+
+    def pop(self):
+        return self._parts.pop()
+
+    def appendleft(self, v):
+        return self._parts.insert(0, v)
+
+
 class DNSError(Exception):
     pass
 
-
-def issuffix(whole, part):
-    return whole[-len(part):] == part
 
 def _in_campus_factory():
     predicates = map(lambda x: IPv4Network(x).Contains, config.campus)
@@ -31,8 +73,10 @@ def _in_campus_factory():
 
 in_campus = _in_campus_factory()
 
+
 def make_answer(qname, qtype, content, qclass='IN', ttl=config.ttl, id_='-1'):
     return (qname, qclass, qtype, ttl, id_, content)
+
 
 def compose_soa(zone):
     serial = strftime('%Y%m%d%H')
@@ -44,6 +88,9 @@ def compose_soa(zone):
     return fmt % locals()
 
 connection = None
+
+known_tags = list('46io')
+
 
 def query_a(qtype, remote, tags, base):
     scope = ldap.SCOPE_BASE
@@ -82,63 +129,61 @@ def query_a(qtype, remote, tags, base):
         results.extend(zip(li, ['A'] * len(li)))
     return results
 
+
 def query(qname, qclass, qtype, id_, remote):
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
-    qname = qname.lower()
-
-    # TODO instead of doing some nasty string fiddling we might want to keep
-    # the result of qname.split('.')
-    qname_parts = qname.split('.')
+    domain = Domain(qname.lower())
 
     # Strip zone and tags from qname to form rqname {
     tags = set()
-    if not hasattr(config, '_zones_parts'):
-        config._zones_parts = [z.split('.') for z in config.zones]
-    for zone_parts in config._zones_parts:
-        if issuffix(qname_parts, zone_parts):
-            rqname_parts = qname_parts[:-len(zone_parts)]
-            while rqname_parts and rqname_parts[-1] in '46io':
-                tags.add(rqname_parts.pop())
+    if not hasattr(config, '_zone_domains'):
+        config._zone_domains = [Domain(z) for z in config.zones]
+    for zone in config._zone_domains:
+        if domain <= zone:
+            relative = domain[:-len(zone)]
+            while relative and relative[-1] in known_tags:
+                tags.add(relative.pop())
             break
     else:
         raise DNSError('Not in my zones: %s' % qname)
-    zone = '.'.join(zone_parts)
-    rqname = '.'.join(rqname_parts)
     # }
 
     answers = []
 
     if qtype in ('A', 'AAAA', 'ANY'):
+
+        def do_query_a(name):
+            return query_a(qtype, remote, tags, fmt % escape_dn_chars(name))
+
         for fmt in config.searches:
-            ips = query_a(qtype, remote, tags, fmt % (
-                          escape_dn_chars(rqname or '@')))
-            if not ips and rqname_parts:
-                wild_rqname_parts = rqname_parts[:]
-                wild_rqname_parts[0] = '*'
-                wild_rqname = '.'.join(wild_rqname_parts)
-                ips = query_a(qtype, remote, tags, fmt % (
-                              escape_dn_chars(wild_rqname)))
+            ips = do_query_a(str(relative) or '@')
+            if not ips and len(relative) > 0:
+                wild_relative = relative[1:]
+                wild_relative.appendleft('*')
+                ips = do_query_a(str(wild_relative))
             if ips:
                 more = [make_answer(qname, qtype_, ip) for ip, qtype_ in ips]
                 answers.extend(more)
                 break
     if qtype in ('NS', 'ANY'):
-        if rqname == '':
+        if len(relative) == 0:
             more = [make_answer(qname, 'NS', '%s.%s' % (dc, zone))
                     for dc in config.ns_dcs]
             answers.extend(more)
     if qtype in ('SOA', 'ANY'):
-        if rqname == '':
-            extra = make_answer(zone, 'SOA', compose_soa(zone))
+        if len(relative) == 0:
+            extra = make_answer(zone, 'SOA', compose_soa(str(zone)))
             answers.append(extra)
 
     return answers
+
 
 def output(*fields):
     stdout.write('\t'.join(fields))
     stdout.write('\n')
     stdout.flush()
+
 
 def respond(fields):
     tag = fields.pop(0)
@@ -156,6 +201,7 @@ def respond(fields):
         except DNSError as e:
             output('LOG', 'DNS error: %s' % e)
             return False
+
 
 def main():
     # Skip handshake when testing manually
