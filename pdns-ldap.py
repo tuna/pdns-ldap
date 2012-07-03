@@ -9,17 +9,18 @@ from ldap.dn import escape_dn_chars
 from ipaddr import IPv4Address, IPv4Network, IPAddress
 
 import ldap
-import re
 import config
 
 class DNSError(Exception):
     pass
+
 
 def issuffix(whole, part):
     return whole[-len(part):] == part
 
 def _in_campus_factory():
     predicates = map(lambda x: IPv4Network(x).Contains, config.campus)
+
     def in_campus(ip):
         ip = IPv4Address(ip)
         for p in predicates:
@@ -39,8 +40,10 @@ def compose_soa(zone):
     # XXX Hard-coded
     #      primary    hostmaster     serial          retry     ttl
     #                                           refresh  expire
-    fmt = "dns.%(zone)s dns@%(zone)s %(serial)s 1200 600 28800 %(ttl)s";
+    fmt = "dns.%(zone)s dns@%(zone)s %(serial)s 1200 600 28800 %(ttl)s"
     return fmt % locals()
+
+connection = None
 
 def query_a(qtype, remote, tags, base):
     scope = ldap.SCOPE_BASE
@@ -56,16 +59,18 @@ def query_a(qtype, remote, tags, base):
 
     def is_v4(x):
         return IPAddress(x).version == 4
+
     def is_v6(x):
         return IPAddress(x).version == 6
+
     def geo_filter(ips, in_):
-        filtered = [ x for x in ips if in_campus(x) == in_ ]
+        filtered = [x for x in ips if in_campus(x) == in_]
         return filtered or ips
 
     results = []
     if qtype in ('AAAA', 'ANY') and '4' not in tags:
         li = filter(is_v6, ips)
-        results.extend(zip(li, [ 'AAAA' ] * len(li)))
+        results.extend(zip(li, ['AAAA'] * len(li)))
     if qtype in ('A', 'ANY') and '6' not in tags:
         if 'i' in tags:
             in_ = True
@@ -74,7 +79,7 @@ def query_a(qtype, remote, tags, base):
         else:
             in_ = in_campus(remote)
         li = geo_filter(filter(is_v4, ips), in_)
-        results.extend(zip(li, [ 'A' ] * len(li)))
+        results.extend(zip(li, ['A'] * len(li)))
     return results
 
 def query(qname, qclass, qtype, id_, remote):
@@ -87,7 +92,6 @@ def query(qname, qclass, qtype, id_, remote):
     qname_parts = qname.split('.')
 
     # Strip zone and tags from qname to form rqname {
-    dotqname = '.' + qname
     tags = set()
     if not hasattr(config, '_zones_parts'):
         config._zones_parts = [z.split('.') for z in config.zones]
@@ -114,16 +118,15 @@ def query(qname, qclass, qtype, id_, remote):
                 wild_rqname_parts[0] = '*'
                 wild_rqname = '.'.join(wild_rqname_parts)
                 ips = query_a(qtype, remote, tags, fmt % (
-                          escape_dn_chars(wild_rqname)))
+                              escape_dn_chars(wild_rqname)))
             if ips:
-                more = [ make_answer(qname, qtype_, ip)
-                         for ip, qtype_ in ips ]
+                more = [make_answer(qname, qtype_, ip) for ip, qtype_ in ips]
                 answers.extend(more)
                 break
     if qtype in ('NS', 'ANY'):
         if rqname == '':
-            more = [ make_answer(qname, 'NS', '%s.%s'%(dc, zone))
-                     for dc in config.ns_dcs ]
+            more = [make_answer(qname, 'NS', '%s.%s' % (dc, zone))
+                    for dc in config.ns_dcs]
             answers.extend(more)
     if qtype in ('SOA', 'ANY'):
         if rqname == '':
@@ -192,4 +195,3 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         output('LOG', 'Interrupted by user when in non-daemon mode')
-
