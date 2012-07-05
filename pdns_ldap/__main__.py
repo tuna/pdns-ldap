@@ -168,7 +168,7 @@ def query(qname, qclass, qtype, id_, remote):
     if len(relative) == 0:
         for qt, data in config.root_specials.items():
             if qtype in (qt, 'ANY'):
-                more = [make_answer(qname, qtype, '%s.%s' % (datum, zone))
+                more = [make_answer(qname, qt, '%s.%s' % (datum, zone))
                         for datum in data]
                 answers.extend(more)
 
