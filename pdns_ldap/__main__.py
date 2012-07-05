@@ -135,7 +135,6 @@ def query(qname, qclass, qtype, id_, remote):
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
     domain = Domain(qname.lower())
 
-    # Strip zone and tags from qname to form rqname {
     tags = set()
     if not hasattr(config, '_zone_domains'):
         config._zone_domains = [Domain(z) for z in config.zones]
@@ -147,7 +146,6 @@ def query(qname, qclass, qtype, id_, remote):
             break
     else:
         raise DNSError('Not in my zones: %s' % qname)
-    # }
 
     answers = []
 
@@ -166,14 +164,16 @@ def query(qname, qclass, qtype, id_, remote):
                 more = [make_answer(qname, qtype_, ip) for ip, qtype_ in ips]
                 answers.extend(more)
                 break
-    if qtype in ('NS', 'ANY'):
-        if len(relative) == 0:
-            more = [make_answer(qname, 'NS', '%s.%s' % (dc, zone))
-                    for dc in config.ns_dcs]
-            answers.extend(more)
-    if qtype in ('SOA', 'ANY'):
-        if len(relative) == 0:
-            extra = make_answer(zone, 'SOA', compose_soa(str(zone)))
+
+    if len(relative) == 0:
+        for qt, data in config.root_specials.items():
+            if qtype in (qt, 'ANY'):
+                more = [make_answer(qname, qtype, '%s.%s' % (datum, zone))
+                        for datum in data]
+                answers.extend(more)
+
+        if qtype in ('SOA', 'ANY'):
+            extra = make_answer(qname, 'SOA', compose_soa(str(zone)))
             answers.append(extra)
 
     return answers
@@ -205,7 +205,9 @@ def respond(fields):
 
 def main():
     # Skip handshake when testing manually
-    if not stdin.isatty():
+    if stdin.isatty():
+        print('stdin is tty, skipping handshake')
+    else:
         if stdin.readline() == 'HELO\t1\n':
             output('OK', 'pdns-ldap-py is ready')
         else:
