@@ -24,7 +24,7 @@ zones = ['tuna.tsinghua.edu.cn', 'tuna', 'mirrors.tsinghua.edu.cn']
 
 root_specials = {
     'NS': ['dns', 'dns2'],
-    'MX': ['mta'],
+    'MX': ['10 mta'],
 }
 
 campus = ['59.66.0.0/16', '166.111.0.0/16']
