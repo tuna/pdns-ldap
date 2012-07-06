@@ -5,8 +5,8 @@ if hostname == 'blackie':
     uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
     start_tls = True
 elif hostname.startswith('alef'):
-    uri = 'ldap://192.168.100.89'
-    start_tls = False
+    uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
+    start_tls = True
 elif hostname.startswith('major'):
     uri = 'ldap://127.0.0.1'
     start_tls = False
