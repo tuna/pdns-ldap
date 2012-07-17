@@ -157,8 +157,12 @@ def query(qname, qclass, qtype, id_, remote):
         for fmt in config.searches:
             ips = do_query_a(str(relative) or '@')
             if not ips and len(relative) > 0:
-                wild_relative = relative[1:]
-                wild_relative.appendleft('*')
+                # Wildcard support.
+                # Currently only cn=**.<dc> elements in the LDAP tree are
+                # respected. <dc> is a single domain component, and the **
+                # matches an arbitrary number of domain components.
+                wild_relative = relative[-1:]
+                wild_relative.appendleft('**')
                 ips = do_query_a(str(wild_relative))
             if ips:
                 more = [make_answer(qname, qtype_, ip) for ip, qtype_ in ips]
