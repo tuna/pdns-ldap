@@ -169,7 +169,9 @@ def query(qname, qclass, qtype, id_, remote):
                 answers.extend(more)
                 break
 
-    if len(relative) == 0:
+    if len(relative) == 0 or \
+            relative == Domain('v') and qtype in ('MX', 'ANY'):
+            # Live with this awkward hack until the big LDAP tree restructure
         for qt, data in config.root_specials.items():
             if qtype in (qt, 'ANY'):
                 more = [make_answer(qname, qt, '%s.%s' % (datum, zone))
