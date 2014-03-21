@@ -228,7 +228,7 @@ def main():
 
     # XXX Global variable
     global connection
-    connection = ReconnectLDAPObject(config.uri)
+    connection = ReconnectLDAPObject(config.uri, retry_max=4, retry_delay=5)
     # XXX A little ugly here
     connection.deref = ldap.DEREF_FINDING
 
