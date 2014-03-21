@@ -100,9 +100,10 @@ def query_a(qtype, remote, tags, base):
 
     try:
         re = connection.search_s(base, scope, attrlist=[ipattr])
-    except ldap.NO_SUCH_OBJECT:
-        return []
-    except ldap.ALIAS_PROBLEM:
+    except ldap.LDAPError as e:
+        if not isinstance(e, ldap.NO_SUCH_OBJECT):
+            output('LOG', 'Unusual LDAP exception: %s' % e)
+            output('LOG', 'Base was: %s' % base)
         return []
 
     # re looks like [ (dn, attr_dict), ... ]
@@ -247,7 +248,7 @@ def main():
                 output('END')
             else:
                 output('FAIL')
-        except Exception as e:
+        except Exception:
             output('FAIL')
             output('LOG', 'Unexpected error, traceback:')
             tb_lines = traceback.format_exc().split('\n')
