@@ -1,6 +1,8 @@
 # NOTE: This is a toy, actually.
 # External dependencies: ipaddr, python-ldap
 
+import traceback
+
 from sys import stdin, stdout, exit
 from time import strftime
 from collections import Iterable
@@ -228,21 +230,25 @@ def main():
     connection.deref = ldap.DEREF_FINDING
 
     if config.start_tls:
-        ldap.set_option(ldap.OPT_X_TLS_CACERTFILE, config.ca_cert)
-        ldap.set_option(ldap.OPT_X_TLS_CERTFILE, config.cert)
+        ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
         connection.start_tls_s()
 
-    connection.bind(config.binddn, config.bindpw)
+    connection.bind_s(config.binddn, config.bindpw)
 
     while True:
         line = stdin.readline()
         if len(line) == 0:
             break
         fields = line.rstrip('\n').split('\t')
-        if respond(fields):
-            output('END')
-        else:
+        try:
+            if respond(fields):
+                output('END')
+            else:
+                output('FAIL')
+        except e:
             output('FAIL')
+            output('LOG', 'Unexpected error, traceback in stderr')
+            traceback.print_exc()
 
 if __name__ == '__main__':
     try:
