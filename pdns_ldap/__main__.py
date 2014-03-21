@@ -102,6 +102,8 @@ def query_a(qtype, remote, tags, base):
         re = connection.search_s(base, scope, attrlist=[ipattr])
     except ldap.NO_SUCH_OBJECT:
         return []
+    except ldap.ALIAS_PROBLEM:
+        return []
 
     # re looks like [ (dn, attr_dict), ... ]
     ips = re[0][1][ipattr]
@@ -238,17 +240,19 @@ def main():
     while True:
         line = stdin.readline()
         if len(line) == 0:
-            break
+            continue
         fields = line.rstrip('\n').split('\t')
         try:
             if respond(fields):
                 output('END')
             else:
                 output('FAIL')
-        except e:
+        except Exception as e:
             output('FAIL')
-            output('LOG', 'Unexpected error, traceback in stderr')
-            traceback.print_exc()
+            output('LOG', 'Unexpected error, traceback:')
+            tb_lines = traceback.format_exc().split('\n')
+            for line in tb_lines:
+                output('LOG', line)
 
 if __name__ == '__main__':
     try:
