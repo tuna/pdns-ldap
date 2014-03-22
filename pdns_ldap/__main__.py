@@ -135,6 +135,29 @@ def query_a(qtype, remote, tags, base):
     return results
 
 
+def query_raw(qtype, base):
+    # XXX duplicate
+    try:
+        re = connection.search_s(base, ldap.SCOPE_BASE)
+    except ldap.LDAPError as e:
+        if not isinstance(e, ldap.NO_SUCH_OBJECT):
+            output('LOG', 'Unusual LDAP exception: %s' % e)
+            output('LOG', 'Base was: %s' % base)
+        return []
+
+    attr_dict = re[0][1]
+    results = []
+
+    for k, li in attr_dict.items():
+        k = k.upper()
+        if not k.endswith('RECORD'):
+            continue
+        t = k[:-len('RECORD')]
+        if qtype == 'ANY' or qtype == t:
+            results.extend(zip(li, [t] * len(li)))
+    return results
+
+
 def query(qname, qclass, qtype, id_, remote):
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
@@ -174,18 +197,14 @@ def query(qname, qclass, qtype, id_, remote):
                 answers.extend(more)
                 break
 
-    if len(relative) == 0 or \
-            relative == Domain('v') and qtype in ('MX', 'ANY'):
-            # Live with this awkward hack until the big LDAP tree restructure
-        for qt, data in config.root_specials.items():
-            if qtype in (qt, 'ANY'):
-                more = [make_answer(qname, qt, '%s.%s' % (datum, zone))
-                        for datum in data]
-                answers.extend(more)
+    base = config.raw_search % escape_dn_chars(str(relative) or '@')
+    more = [make_answer(qname, t, a % dict(zone=zone))
+            for a, t in query_raw(qtype, base)]
+    answers.extend(more)
 
-        if qtype in ('SOA', 'ANY'):
-            extra = make_answer(qname, 'SOA', compose_soa(str(zone)))
-            answers.append(extra)
+    if len(relative) == 0 and qtype in ('SOA', 'ANY'):
+        extra = make_answer(qname, 'SOA', compose_soa(str(zone)))
+        answers.append(extra)
 
     return answers
 

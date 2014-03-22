@@ -23,13 +23,15 @@ ttl = '60'
 zones = ['tuna.tsinghua.edu.cn', 'tuna', 'mirrors.tsinghua.edu.cn']
 
 root_specials = {
-    'NS': ['dns', 'dns2'],
-    'MX': ['10\tmta'],
+    'NS': ['dns.%(zone)s', 'dns2.%(zone)s'],
+    'MX': ['10\tms94010085.msv1.invalid.outlook.com'],
 }
 
 campus = ['59.66.0.0/16', '166.111.0.0/16']
 
 searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
+
+raw_search = 'dc=%s,ou=domains,o=tuna'
 
 try:
     from config_local import *
