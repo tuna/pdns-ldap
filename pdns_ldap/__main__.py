@@ -269,10 +269,11 @@ def main():
                 output('FAIL')
         except Exception:
             output('FAIL')
-            output('LOG', 'Unexpected error, traceback:')
+            output('LOG', 'Shutting down on unexpected error. Traceback:')
             tb_lines = traceback.format_exc().split('\n')
             for line in tb_lines:
                 output('LOG', line)
+            break
 
 if __name__ == '__main__':
     try:
