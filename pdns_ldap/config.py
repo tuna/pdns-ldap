@@ -1,8 +1,8 @@
 from socket import gethostname
 # XXX Quick-and-dirty way of adapting configuration
 hostname = gethostname()
-if hostname == 'blackie':
-    uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
+if hostname == 'BigEagle-desktop':
+    uri = 'ldap://ldap.tuna.tsinghua.edu.cn'
     start_tls = True
 elif hostname.startswith('alef'):
     uri = 'ldap://ldap2.tuna.tsinghua.edu.cn'
@@ -28,6 +28,7 @@ root_specials = {
 }
 
 campus = ['59.66.0.0/16', '166.111.0.0/16']
+campus6 = ['2402:F000::/32', ]
 
 searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
 

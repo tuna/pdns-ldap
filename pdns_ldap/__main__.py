@@ -9,7 +9,7 @@ from collections import Iterable
 
 from ldap.ldapobject import ReconnectLDAPObject
 from ldap.dn import escape_dn_chars
-from ipaddr import IPv4Address, IPv4Network, IPAddress
+from ipaddr import IPv4Address, IPv4Network, IPAddress, IPv6Network, IPv6Address
 
 import ldap
 import config
@@ -76,6 +76,20 @@ def _in_campus_factory():
 in_campus = _in_campus_factory()
 
 
+def _in_campus6_factory():
+    predicates = map(lambda x: IPv6Network(x).Contains, config.campus6)
+
+    def in_campus(ip):
+        ip = IPv6Address(ip)
+        for p in predicates:
+            if p(ip):
+                return True
+        return False
+    return in_campus
+
+in_campus6 = _in_campus6_factory()
+
+
 def make_answer(qname, qtype, content, qclass='IN', ttl=config.ttl, id_='-1'):
     return (qname, qclass, qtype, ttl, id_, content)
 
@@ -115,23 +129,28 @@ def query_a(qtype, remote, tags, base):
     def is_v6(x):
         return IPAddress(x).version == 6
 
-    def geo_filter(ips, in_):
-        filtered = [x for x in ips if in_campus(x) == in_]
+    def geo_filter(ips, in_, family=4):
+        _in_campus = in_campus if family == 4 else in_campus6
+        filtered = [x for x in ips if _in_campus(x) == in_]
         return filtered or ips
 
     results = []
+
+    if 'i' in tags:
+        in_ = True
+    elif 'o' in tags:
+        in_ = False
+    else:
+        in_ = in_campus(remote)
+
     if qtype in ('AAAA', 'ANY') and '4' not in tags:
-        li = filter(is_v6, ips)
+        li = geo_filter(filter(is_v6, ips), in_, family=6)
         results.extend(zip(li, ['AAAA'] * len(li)))
+
     if qtype in ('A', 'ANY') and '6' not in tags:
-        if 'i' in tags:
-            in_ = True
-        elif 'o' in tags:
-            in_ = False
-        else:
-            in_ = in_campus(remote)
-        li = geo_filter(filter(is_v4, ips), in_)
+        li = geo_filter(filter(is_v4, ips), in_, family=4)
         results.extend(zip(li, ['A'] * len(li)))
+
     return results
 
 
