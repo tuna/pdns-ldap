@@ -19,7 +19,7 @@ cert = '/etc/ssl/tuna/server.crt'
 binddn = 'cn=pdns,ou=robots,o=tuna'
 bindpw = "NOT STORED IN GIT REPO"
 
-ttl = '60'
+ttl = '512'
 zones = ['tuna.tsinghua.edu.cn', 'tuna', 'mirrors.tsinghua.edu.cn']
 
 root_specials = {
