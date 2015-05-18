@@ -181,10 +181,14 @@ def query(qname, qclass, qtype, id_, remote):
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
     domain = Domain(qname.lower())
-
+    edu_domain = None
     tags = set()
     if not hasattr(config, '_zone_domains'):
         config._zone_domains = [Domain(z) for z in config.zones]
+
+    if not hasattr(config, '_edu_zone_domains'):
+        config._edu_zone_domains = [Domain(z) for z in config.edu_zones]
+
     for zone in config._zone_domains:
         if domain <= zone:
             relative = domain[:-len(zone)]
@@ -192,16 +196,29 @@ def query(qname, qclass, qtype, id_, remote):
                 tags.add(relative.pop())
             break
     else:
-        raise DNSError('Not in my zones: %s' % qname)
+        for zone in config._edu_zone_domains:
+            if domain <= zone:
+                edu_domain = domain[-3]
+                relative = domain[:-len(zone)]
+                while relative and relative[-1] in known_tags:
+                    tags.add(relative.pop())
+                break
+        else:
+            raise DNSError('Not in my zones: %s' % qname)
 
     answers = []
+
+    searches = config.searches if edu_domain is None \
+        else [config.edu_search(edu_domain)]
+    raw_search = config.raw_search if edu_domain is None \
+        else config.edu_raw_search(edu_domain)
 
     if qtype in ('A', 'AAAA', 'ANY'):
 
         def do_query_a(name):
             return query_a(qtype, remote, tags, fmt % escape_dn_chars(name))
 
-        for fmt in config.searches:
+        for fmt in searches:
             ips = do_query_a(str(relative) or '@')
             if not ips and len(relative) > 0:
                 # Wildcard support.
@@ -216,7 +233,7 @@ def query(qname, qclass, qtype, id_, remote):
                 answers.extend(more)
                 break
 
-    base = config.raw_search % escape_dn_chars(str(relative) or '@')
+    base = raw_search % escape_dn_chars(str(relative) or '@')
     more = [make_answer(qname, t, a % dict(zone=zone))
             for a, t in query_raw(qtype, base)]
     answers.extend(more)

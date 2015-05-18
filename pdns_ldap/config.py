@@ -20,7 +20,8 @@ binddn = 'cn=pdns,ou=robots,o=tuna'
 bindpw = "NOT STORED IN GIT REPO"
 
 ttl = '512'
-zones = ['tuna.tsinghua.edu.cn', 'tuna', 'mirrors.tsinghua.edu.cn']
+zones = ['tuna.tsinghua.edu.cn', 'tuna', 'tuna.edu.cn']
+edu_zones = ["mirrors.edu.cn", "mirror.edu.cn", 'mirrors.tsinghua.edu.cn']
 
 root_specials = {
     'NS': ['dns.%(zone)s', 'dns2.%(zone)s'],
@@ -33,6 +34,10 @@ campus6 = ['2402:F000::/32', ]
 searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
 
 raw_search = 'dc=%s,ou=domains,o=tuna'
+
+edu_search = lambda domain: 'cn=%%s,ou=%s,ou=edu-domains,o=tuna' % domain
+edu_raw_search = lambda domain: 'dc=%%s,ou=%s,ou=edu-domains,o=tuna' % domain
+
 
 try:
     from config_local import *
