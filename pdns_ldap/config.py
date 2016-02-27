@@ -1,17 +1,15 @@
 from socket import gethostname
 # XXX Quick-and-dirty way of adapting configuration
 hostname = gethostname()
-if hostname == 'BigEagle-desktop':
-    uri = 'ldap://ldap.tuna.tsinghua.edu.cn'
-    start_tls = True
-elif hostname.startswith('misc-dns'):
+if hostname.startswith('misc-dns'):
     uri = 'ldap://10.0.3.11'
     start_tls = False
 elif hostname.startswith('major'):
     uri = 'ldap://127.0.0.1'
     start_tls = False
 else:
-    raise Exception('Unknown host: %s. Cannot determine profile' % hostname)
+    uri = 'ldap://ldap.tuna.tsinghua.edu.cn'
+    start_tls = True
 
 ca_cert = '/etc/ssl/tuna/ca.crt'
 cert = '/etc/ssl/tuna/server.crt'
@@ -30,6 +28,7 @@ root_specials = {
 
 campus = ['59.66.0.0/16', '166.111.0.0/16']
 campus6 = ['2402:F000::/32', ]
+campus_only = []  # IPaddrs only accessible inside campus
 
 searches = ['cn=%s,ou=domains,o=tuna', 'cn=%s,ou=hosts,o=tuna']
 

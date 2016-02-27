@@ -74,7 +74,7 @@ def _in_campus_factory():
     return in_campus
 
 in_campus = _in_campus_factory()
-
+campus_accessible = in_campus
 
 def _in_campus6_factory():
     predicates = map(lambda x: IPv6Network(x).Contains, config.campus6)
@@ -88,6 +88,19 @@ def _in_campus6_factory():
     return in_campus
 
 in_campus6 = _in_campus6_factory()
+
+def _public_accessible_factory():
+    predicates = map(lambda x: IPv4Network(x).Contains, config.campus_only)
+
+    def public_accessible(ip):
+        ip = IPv4Address(ip)
+        for p in predicates:
+            if p(ip):
+                return False
+        return True
+    return public_accessible
+
+public_accessible = _public_accessible_factory()
 
 
 def make_answer(qname, qtype, content, qclass='IN', ttl=config.ttl, id_='-1'):
@@ -129,32 +142,18 @@ def query_a(qtype, remote, tags, base):
     def is_v6(x):
         return IPAddress(x).version == 6
 
-    def geo_filter(ips, in_, family=4):
-        _in_campus = in_campus if family == 4 else in_campus6
-        filtered = [x for x in ips if _in_campus(x) == in_]
-        return filtered or ips
-
     results = []
+    if qtype in ('AAAA', 'ANY'):
+        li = filter(is_v6, ips)
+        results.extend(zip(li, ['AAAA']*len(li)))
+    if qtype in ('A', 'ANY'):
+        li = filter(is_v4, ips)
+        results.extend(zip(li, ['A']*len(li)))
 
-    if 'i' in tags:
-        in_ = True
-    elif 'o' in tags:
-        in_ = False
-    else:
-        in_ = in_campus(remote)
-
-    if qtype in ('AAAA', 'ANY') and '4' not in tags:
-        li = geo_filter(filter(is_v6, ips), in_, family=6)
-        results.extend(zip(li, ['AAAA'] * len(li)))
-
-    if qtype in ('A', 'ANY') and '6' not in tags:
-        li = geo_filter(filter(is_v4, ips), in_, family=4)
-        results.extend(zip(li, ['A'] * len(li)))
-
-    return results
+    return list(geo_filter(results, remote, tags)) or results
 
 
-def query_raw(qtype, base):
+def query_raw(qtype, remote, tags, base):
     # XXX duplicate
     try:
         re = connection.search_s(base, ldap.SCOPE_BASE)
@@ -172,9 +171,42 @@ def query_raw(qtype, base):
         if not k.endswith('RECORD'):
             continue
         t = k[:-len('RECORD')]
-        if qtype == 'ANY' or qtype == t:
+        if qtype == 'ANY' or qtype == t or t == 'CNAME':
             results.extend(zip(li, [t] * len(li)))
-    return results
+
+    # print(results)
+    return list(geo_filter(results, remote, tags)) or results
+
+
+def geo_filter(results, remote, tags):
+    # in_: result should be in campus
+    # family: (None, 4, 6) -> (Any, 4, 6)
+
+    if 'i' in tags:
+        in_ = True
+    elif 'o' in tags:
+        in_ = False
+    else:
+        in_ = in_campus(remote)
+
+    if '4' in tags:
+        family = 4
+    elif '6' in tags:
+        family = 6
+    else:
+        family = None
+
+    def always_true(x):
+        return True
+
+    accessible4 = campus_accessible if in_ else public_accessible
+    accessible6 = in_campus6 if in_ else always_true
+
+    for r, t in results:
+        if t == "A" and accessible4(r) and family != 6:
+            yield r, t
+        elif t == "AAAA" and accessible6(r) and family != 4:
+            yield r, t
 
 
 def query(qname, qclass, qtype, id_, remote):
@@ -235,7 +267,7 @@ def query(qname, qclass, qtype, id_, remote):
 
     base = raw_search % escape_dn_chars(str(relative) or '@')
     more = [make_answer(qname, t, a % dict(zone=zone))
-            for a, t in query_raw(qtype, base)]
+            for a, t in query_raw(qtype, remote, tags, base)]
     answers.extend(more)
 
     if len(relative) == 0 and qtype in ('SOA', 'ANY'):
