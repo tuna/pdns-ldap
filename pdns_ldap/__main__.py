@@ -172,7 +172,7 @@ def query_raw(qtype, remote, tags, base):
             continue
         t = k[:-len('RECORD')]
         if qtype == 'ANY' or qtype == t:
-            results.extend([(r, t) for r in li]))
+            results.extend([(r, t) for r in li])
 
     # print(results)
     return list(geo_filter(results, remote, tags)) or results
