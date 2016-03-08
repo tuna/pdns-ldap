@@ -171,7 +171,7 @@ def query_raw(qtype, remote, tags, base):
         if not k.endswith('RECORD'):
             continue
         t = k[:-len('RECORD')]
-        if qtype == 'ANY' or qtype == t or t == 'CNAME':
+        if qtype == 'ANY' or qtype == t:
             results.extend(zip(li, [t] * len(li)))
 
     # print(results)
