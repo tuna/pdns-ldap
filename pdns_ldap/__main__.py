@@ -145,10 +145,10 @@ def query_a(qtype, remote, tags, base):
     results = []
     if qtype in ('AAAA', 'ANY'):
         li = filter(is_v6, ips)
-        results.extend(zip(li, ['AAAA']*len(li)))
+        results.extend([(addr, 'AAAA') for addr in li])
     if qtype in ('A', 'ANY'):
         li = filter(is_v4, ips)
-        results.extend(zip(li, ['A']*len(li)))
+        results.extend([(addr, 'A') for addr in li])
 
     return list(geo_filter(results, remote, tags)) or results
 
@@ -172,7 +172,7 @@ def query_raw(qtype, remote, tags, base):
             continue
         t = k[:-len('RECORD')]
         if qtype == 'ANY' or qtype == t:
-            results.extend(zip(li, [t] * len(li)))
+            results.extend([(r, t) for r in li]))
 
     # print(results)
     return list(geo_filter(results, remote, tags)) or results
