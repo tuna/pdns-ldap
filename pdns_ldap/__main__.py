@@ -16,9 +16,40 @@ import config
 
 
 class Domain(object):
+    """
+    Domain represents a domain name. It can be created either from a list of
+    domain parts or a string with an optional trailing dot:
+
+    >>> Domain('tuna.moe')
+    Domain('tuna.moe')
+    >>> Domain(['tuna', 'moe'])
+    Domain('tuna.moe')
+
+    When indexed, it behaves like a list of domain parts. Slicing returns
+    another Domain instance:
+
+    >>> d = Domain('tuna.moe')
+    >>> d[0]
+    'tuna'
+    >>> d[:1]
+    Domain('tuna')
+
+    Domains form a partially ordered set. Two instances are equally iff they
+    represents the same domain name, and domain x is smaller than domain y iff
+    x is a subdomain of y:
+
+    >>> Domain('tuna.moe') == Domain(['tuna', 'moe'])
+    True
+    >>> Domain('blog.tuna.moe') < Domain('tuna.moe')
+    True
+    >>> Domain('a.tuna.moe') < Domain('b.tuna.moe')
+    False
+    >>> Domain('b.tuna.moe') < Domain('a.tuna.moe')
+    False
+    """
     def __init__(self, value):
         if isinstance(value, basestring):
-            self._parts = value.split('.') if value else []
+            self._parts = [part for part in value.split('.') if part]
         elif isinstance(value, Iterable):
             self._parts = value
         else:
@@ -51,15 +82,28 @@ class Domain(object):
             raise TypeError('Both operands should be of Domain type')
         return len(rhs) == 0 or self[-len(rhs):] == rhs
 
+    def __lt__(self, rhs):
+        return self <= rhs and self != rhs
+
     def pop(self):
+        """
+        Removes and returns the leftmost part. This produces the most specific
+        part of the Domain and replaces the Domain with its parent domain.
+        """
         return self._parts.pop()
 
     def appendleft(self, v):
+        """
+        Appends a new part to the left. This is useful for constructing a
+        child domain.
+        """
         return self._parts.insert(0, v)
 
 
 class DNSError(Exception):
-    pass
+    """
+    Indicates that the query cannot be answered.
+    """
 
 
 def _in_campus_factory():
@@ -104,10 +148,20 @@ public_accessible = _public_accessible_factory()
 
 
 def make_answer(qname, qtype, content, qclass='IN', ttl=config.ttl, id_='-1'):
+    """
+    Makes a tuple that can be sent to pdns after joined by space.
+
+    Supplies default values for the mostly invariant fields, and arranges all
+    the fields in an order suitable for sending to pdns.
+    """
     return (qname, qclass, qtype, ttl, id_, content)
 
 
 def compose_soa(zone):
+    """
+    Makes an SOA record for a specific zone. It assumes that the primary DNS
+    server has the domain name "dns." followed by the zone.
+    """
     serial = strftime('%Y%m%d%H')
     ttl = config.ttl
     # XXX Hard-coded
@@ -121,7 +175,15 @@ connection = None
 known_tags = list('46io')
 
 
-def query_a(qtype, remote, tags, base):
+def query_ipaddr(qtype, remote, tags, base):
+    """
+    Answers an A or AAA query by looking at the ipHostNumber attribute of the
+    host objects.
+
+    The qtype argument specifies the query type. The remote and tags arguments
+    are used for filtering. The base argument is the LDAP DN for the host
+    object to look at.
+    """
     scope = ldap.SCOPE_BASE
     ipattr = 'ipHostNumber'
 
@@ -154,6 +216,11 @@ def query_a(qtype, remote, tags, base):
 
 
 def query_raw(qtype, remote, tags, base):
+    """
+    Answers any type of query by looking at the *Record attributes of the
+    host object. For instance, a TXT query may be answered by the TXTRecord
+    attribute. Arguments are the same as those of query_ipaddr.
+    """
     # XXX duplicate
     try:
         re = connection.search_s(base, ldap.SCOPE_BASE)
@@ -210,6 +277,9 @@ def geo_filter(results, remote, tags):
 
 
 def query(qname, qclass, qtype, id_, remote):
+    """
+    Answers a DNS query.
+    """
     if qclass != 'IN':
         raise DNSError('Unsupported qclass: %s (expceted "IN")' % qclass)
     domain = Domain(qname.lower())
@@ -247,11 +317,11 @@ def query(qname, qclass, qtype, id_, remote):
 
     if qtype in ('A', 'AAAA', 'ANY'):
 
-        def do_query_a(name):
-            return query_a(qtype, remote, tags, fmt % escape_dn_chars(name))
+        def do_query_ipaddr(name):
+            return query_ipaddr(qtype, remote, tags, fmt % escape_dn_chars(name))
 
         for fmt in searches:
-            ips = do_query_a(str(relative) or '@')
+            ips = do_query_ipaddr(str(relative) or '@')
             if not ips and len(relative) > 0:
                 # Wildcard support.
                 # Currently only cn=**.<dc> elements in the LDAP tree are
@@ -259,7 +329,7 @@ def query(qname, qclass, qtype, id_, remote):
                 # matches an arbitrary number of domain components.
                 wild_relative = relative[-1:]
                 wild_relative.appendleft('**')
-                ips = do_query_a(str(wild_relative))
+                ips = do_query_ipaddr(str(wild_relative))
             if ips:
                 more = [make_answer(qname, qtype_, ip) for ip, qtype_ in ips]
                 answers.extend(more)
@@ -278,12 +348,19 @@ def query(qname, qclass, qtype, id_, remote):
 
 
 def output(*fields):
+    """
+    Joins fields by tabs and write to stdout. This is the format expected by
+    pdns. The fields must not contain tabs.
+    """
     stdout.write('\t'.join(fields))
     stdout.write('\n')
     stdout.flush()
 
 
 def respond(fields):
+    """
+    Takes a command from pdns and responds accordingly.
+    """
     tag = fields.pop(0)
     if tag == 'PING':
         output('LOG', 'Ready.')
