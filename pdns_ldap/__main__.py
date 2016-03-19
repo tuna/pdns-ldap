@@ -5,11 +5,15 @@ import traceback
 
 from sys import stdin, stdout, exit
 from time import strftime
-from collections import Iterable
+from collections import Iterable, defaultdict
 
 from ldap.ldapobject import ReconnectLDAPObject
 from ldap.dn import escape_dn_chars
-from ipaddr import IPv4Address, IPv4Network, IPAddress, IPv6Network, IPv6Address
+from ipaddr import (
+    IPv4Address, IPv4Network, IPAddress, IPv6Network, IPv6Address
+)
+
+import functools
 
 import ldap
 import config
@@ -120,6 +124,7 @@ def _in_campus_factory():
 in_campus = _in_campus_factory()
 campus_accessible = in_campus
 
+
 def _in_campus6_factory():
     predicates = map(lambda x: IPv6Network(x).Contains, config.campus6)
 
@@ -132,6 +137,7 @@ def _in_campus6_factory():
     return in_campus
 
 in_campus6 = _in_campus6_factory()
+
 
 def _public_accessible_factory():
     predicates = map(lambda x: IPv4Network(x).Contains, config.campus_only)
@@ -204,15 +210,18 @@ def query_ipaddr(qtype, remote, tags, base):
     def is_v6(x):
         return IPAddress(x).version == 6
 
-    results = []
+    results = defaultdict(list)
     if qtype in ('AAAA', 'ANY'):
-        li = filter(is_v6, ips)
-        results.extend([(addr, 'AAAA') for addr in li])
+        results['AAAA'] = filter(is_v6, ips)
     if qtype in ('A', 'ANY'):
-        li = filter(is_v4, ips)
-        results.extend([(addr, 'A') for addr in li])
+        results['A'] = filter(is_v4, ips)
 
-    return list(geo_filter(results, remote, tags)) or results
+    geo_results = geo_filter(results, remote, tags)
+    for t, rs in results.iteritems():
+        if t not in geo_results:
+            geo_results[t] = rs
+
+    return [(r, t) for t, rs in geo_results.iteritems() for r in rs]
 
 
 def query_raw(qtype, remote, tags, base):
@@ -231,7 +240,7 @@ def query_raw(qtype, remote, tags, base):
         return []
 
     attr_dict = re[0][1]
-    results = []
+    results = defaultdict(list)
 
     for k, li in attr_dict.items():
         k = k.upper()
@@ -239,13 +248,17 @@ def query_raw(qtype, remote, tags, base):
             continue
         t = k[:-len('RECORD')]
         if qtype == 'ANY' or qtype == t:
-            results.extend([(r, t) for r in li])
+            results[t] = li
 
-    # print(results)
-    return list(geo_filter(results, remote, tags)) or results
+    geo_results = geo_filter(results, remote, tags)
+    for t, rs in results.iteritems():
+        if t not in geo_results:
+            geo_results[t] = rs
+
+    return [(r, t) for t, rs in geo_results.iteritems() for r in rs]
 
 
-def geo_filter(results, remote, tags):
+def geo_filter(results, remote, tags, family=None):
     # in_: result should be in campus
     # family: (None, 4, 6) -> (Any, 4, 6)
 
@@ -269,11 +282,20 @@ def geo_filter(results, remote, tags):
     accessible4 = campus_accessible if in_ else public_accessible
     accessible6 = in_campus6 if in_ else always_true
 
-    for r, t in results:
-        if t == "A" and accessible4(r) and family != 6:
-            yield r, t
-        elif t == "AAAA" and accessible6(r) and family != 4:
-            yield r, t
+    geo_results = defaultdict(list)
+    for t, rs in results.iteritems():
+        if t == "A":
+            for r in rs:
+                if accessible4(r) and family in (4, None):
+                    geo_results[t].append(r)
+        elif t == "AAAA":
+            for r in rs:
+                if accessible6(r) and family in (6, None):
+                    geo_results[t].append(r)
+        else:
+            for r in rs:
+                geo_results[t].append(r)
+    return geo_results
 
 
 def query(qname, qclass, qtype, id_, remote):
