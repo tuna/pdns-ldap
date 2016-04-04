@@ -217,9 +217,6 @@ def query_ipaddr(qtype, remote, tags, base):
         results['A'] = filter(is_v4, ips)
 
     geo_results = geo_filter(results, remote, tags)
-    for t, rs in results.iteritems():
-        if t not in geo_results:
-            geo_results[t] = rs
 
     return [(r, t) for t, rs in geo_results.iteritems() for r in rs]
 
@@ -251,9 +248,6 @@ def query_raw(qtype, remote, tags, base):
             results[t] = li
 
     geo_results = geo_filter(results, remote, tags)
-    for t, rs in results.iteritems():
-        if t not in geo_results:
-            geo_results[t] = rs
 
     return [(r, t) for t, rs in geo_results.iteritems() for r in rs]
 
@@ -282,19 +276,22 @@ def geo_filter(results, remote, tags, family=None):
     accessible4 = campus_accessible if in_ else public_accessible
     accessible6 = in_campus6 if in_ else always_true
 
-    geo_results = defaultdict(list)
+    geo_results = {}
     for t, rs in results.iteritems():
         if t == "A":
-            for r in rs:
-                if accessible4(r) and family in (4, None):
-                    geo_results[t].append(r)
+            if family not in (4, None):
+                continue
+            geo_rs = list(filter(accessible4, rs))
+            # if all records are not accessible, return them all
+            geo_results[t] = geo_rs if len(geo_rs) > 0 else rs
         elif t == "AAAA":
-            for r in rs:
-                if accessible6(r) and family in (6, None):
-                    geo_results[t].append(r)
+            if family not in (6, None):
+                continue
+            geo_rs = list(filter(accessible6, rs))
+            # if all records are not accessible, return them all
+            geo_results[t] = geo_rs if len(geo_rs) > 0 else rs
         else:
-            for r in rs:
-                geo_results[t].append(r)
+            geo_results[t] = rs
     return geo_results
 
 
